@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-ingress-dashboard
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kube-ingress-dashboard
+rules:
+  # Allow dashboard to get namespaces and ingresses.
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    resourceNames: ["*"]
+    verbs: ["get", "list"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-ingress-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-ingress-dashboard
+subjects:
+  - kind: ServiceAccount
+    name: kube-ingress-dashboard
+    namespace: testing
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-ingress-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-ingress-dashboard
+  template:
+    spec:
+      serviceAccountName: kube-ingress-dashboard
+      containers:
+        - name: kube-ingress-dashboard
+          image: ghcr.io/antvirf/kube-ingress-dashboard:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: 10m
+              memory: 32Mi
+            requests:
+              cpu: 10m
+              memory: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-ingress-dashboard
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kube-ingress-dashboard
+spec:
+  ingressClassName: ngrok
+  rules:
+    - host: ### YOUR NGROK DOMAIN
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kube-ingress-dashboard
+                port:
+                  number: 80
